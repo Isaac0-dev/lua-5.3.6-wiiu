@@ -28,7 +28,7 @@ include $(DEVKITPPC)/base_rules
 BUILD		:=	build
 SOURCES		:=	src
 INCLUDES	:=	
-LIBTARGET	:=	liblua.a
+LIBTARGET	:=	liblua53.a
 
 #---------------------------------------------------------------------------------
 # installation parameters
