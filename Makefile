@@ -1,114 +1,128 @@
-# Makefile for installing Lua
-# See doc/readme.html for installation and customization instructions.
+#---------------------------------------------------------------------------------
+# Clear the implicit built in rules
+#---------------------------------------------------------------------------------
+.SUFFIXES:
+#---------------------------------------------------------------------------------
+ifeq ($(strip $(DEVKITPPC)),)
+$(error "Please set DEVKITPPC in your environment. export DEVKITPPC=<path to>devkitPPC")
+endif
 
-# == CHANGE THE SETTINGS BELOW TO SUIT YOUR ENVIRONMENT =======================
+export PATH			:=	$(DEVKITPPC)/bin:$(PORTLIBS)/bin:$(PATH)
+export PORTLIBS		:=	$(DEVKITPRO)/wut
 
-# Your platform. See PLATS for possible values.
-PLAT= none
+PREFIX	:=	powerpc-eabi-
 
-# Where to install. The installation starts in the src and doc directories,
-# so take care if INSTALL_TOP is not an absolute path. See the local target.
-# You may want to make INSTALL_LMOD and INSTALL_CMOD consistent with
-# LUA_ROOT, LUA_LDIR, and LUA_CDIR in luaconf.h.
-INSTALL_TOP= /usr/local
-INSTALL_BIN= $(INSTALL_TOP)/bin
-INSTALL_INC= $(INSTALL_TOP)/include
-INSTALL_LIB= $(INSTALL_TOP)/lib
-INSTALL_MAN= $(INSTALL_TOP)/man/man1
-INSTALL_LMOD= $(INSTALL_TOP)/share/lua/$V
-INSTALL_CMOD= $(INSTALL_TOP)/lib/lua/$V
+export AS	:=	$(PREFIX)as
+export CC	:=	$(PREFIX)gcc
+export CXX	:=	$(PREFIX)g++
+export AR	:=	$(PREFIX)ar
+export OBJCOPY	:=	$(PREFIX)objcopy
 
-# How to install. If your install program does not support "-p", then
-# you may have to run ranlib on the installed liblua.a.
-INSTALL= install -p
-INSTALL_EXEC= $(INSTALL) -m 0755
-INSTALL_DATA= $(INSTALL) -m 0644
-#
-# If you don't have "install" you can use "cp" instead.
-# INSTALL= cp -p
-# INSTALL_EXEC= $(INSTALL)
-# INSTALL_DATA= $(INSTALL)
+include $(DEVKITPPC)/base_rules
 
-# Other utilities.
-MKDIR= mkdir -p
-RM= rm -f
+#---------------------------------------------------------------------------------
+# BUILD is the directory where object files & intermediate files will be placed
+# SOURCES is a list of directories containing source code
+# INCLUDES is a list of directories containing extra header files
+#---------------------------------------------------------------------------------
+BUILD		:=	build
+SOURCES		:=	src
+INCLUDES	:=	
+LIBTARGET	:=	liblua.a
 
-# == END OF USER SETTINGS -- NO NEED TO CHANGE ANYTHING BELOW THIS LINE =======
+#---------------------------------------------------------------------------------
+# installation parameters
+#---------------------------------------------------------------------------------
+LIBINSTALL	:=	$(PORTLIBS)/lib
+HDRINSTALL	:=	$(PORTLIBS)/include
 
-# Convenience platforms targets.
-PLATS= aix bsd c89 freebsd generic linux macosx mingw posix solaris
+#---------------------------------------------------------------------------------
+# options for code generation
+#---------------------------------------------------------------------------------
+CFLAGS		=	-Os $(DEF_FLAGS) -Wall -Wno-unused $(MACHDEP) $(INCLUDE)
+CXXFLAGS	=	$(CFLAGS)
+ASFLAGS		:=	-g
 
-# What to install.
-TO_BIN= lua luac
-TO_INC= lua.h luaconf.h lualib.h lauxlib.h lua.hpp
-TO_LIB= liblua.a
-TO_MAN= lua.1 luac.1
+#---------------------------------------------------------------------------------
+# any extra libraries we wish to link with the project
+#---------------------------------------------------------------------------------
+LIBS		:=
 
-# Lua version and release.
-V= 5.3
-R= $V.6
+#---------------------------------------------------------------------------------
+# list of directories containing libraries, this must be the top level containing
+# include and lib
+#---------------------------------------------------------------------------------
+LIBDIRS		:=
 
-# Targets start here.
-all:	$(PLAT)
+#---------------------------------------------------------------------------------
+# no real need to edit anything past this point unless you need to add additional
+# rules for different file extensions
+#---------------------------------------------------------------------------------
+ifneq ($(BUILD),$(notdir $(CURDIR)))
+#---------------------------------------------------------------------------------
 
-$(PLATS) clean:
-	cd src && $(MAKE) $@
+export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 
-test:	dummy
-	src/lua -v
+export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
+					$(foreach dir,$(DATA),$(CURDIR)/$(dir))
 
-install: dummy
-	cd src && $(MKDIR) $(INSTALL_BIN) $(INSTALL_INC) $(INSTALL_LIB) $(INSTALL_MAN) $(INSTALL_LMOD) $(INSTALL_CMOD)
-	cd src && $(INSTALL_EXEC) $(TO_BIN) $(INSTALL_BIN)
-	cd src && $(INSTALL_DATA) $(TO_INC) $(INSTALL_INC)
-	cd src && $(INSTALL_DATA) $(TO_LIB) $(INSTALL_LIB)
-	cd doc && $(INSTALL_DATA) $(TO_MAN) $(INSTALL_MAN)
+CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
+SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 
-uninstall:
-	cd src && cd $(INSTALL_BIN) && $(RM) $(TO_BIN)
-	cd src && cd $(INSTALL_INC) && $(RM) $(TO_INC)
-	cd src && cd $(INSTALL_LIB) && $(RM) $(TO_LIB)
-	cd doc && cd $(INSTALL_MAN) && $(RM) $(TO_MAN)
 
-local:
-	$(MAKE) install INSTALL_TOP=../install
+export OFILES	:=	$(CPPFILES:.cpp=.o) $(CFILES:.c=.o) $(SFILES:.s=.o)
 
-none:
-	@echo "Please do 'make PLATFORM' where PLATFORM is one of these:"
-	@echo "   $(PLATS)"
-	@echo "See doc/readme.html for complete instructions."
+export INCLUDE	:=	$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+					$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+					-I$(CURDIR)/$(BUILD) -I$(LIBOGC_INC) \
+					-I$(PORTLIBS)/include
 
-# make may get confused with test/ and install/
-dummy:
+export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) \
+					-L$(LIBOGC_LIB) -L$(PORTLIBS)/lib
 
-# echo config parameters
-echo:
-	@cd src && $(MAKE) -s echo
-	@echo "PLAT= $(PLAT)"
-	@echo "V= $V"
-	@echo "R= $R"
-	@echo "TO_BIN= $(TO_BIN)"
-	@echo "TO_INC= $(TO_INC)"
-	@echo "TO_LIB= $(TO_LIB)"
-	@echo "TO_MAN= $(TO_MAN)"
-	@echo "INSTALL_TOP= $(INSTALL_TOP)"
-	@echo "INSTALL_BIN= $(INSTALL_BIN)"
-	@echo "INSTALL_INC= $(INSTALL_INC)"
-	@echo "INSTALL_LIB= $(INSTALL_LIB)"
-	@echo "INSTALL_MAN= $(INSTALL_MAN)"
-	@echo "INSTALL_LMOD= $(INSTALL_LMOD)"
-	@echo "INSTALL_CMOD= $(INSTALL_CMOD)"
-	@echo "INSTALL_EXEC= $(INSTALL_EXEC)"
-	@echo "INSTALL_DATA= $(INSTALL_DATA)"
+.PHONY: $(BUILD) clean
 
-# echo pkg-config data
-pc:
-	@echo "version=$R"
-	@echo "prefix=$(INSTALL_TOP)"
-	@echo "libdir=$(INSTALL_LIB)"
-	@echo "includedir=$(INSTALL_INC)"
+#---------------------------------------------------------------------------------
+$(BUILD):
+	@[ -d $@ ] || mkdir -p $@
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
-# list targets that do not create files (but not all makes understand .PHONY)
-.PHONY: all $(PLATS) clean test install local none dummy echo pecho lecho
+#---------------------------------------------------------------------------------
+all: $(LIBTARGET)
 
-# (end of Makefile)
+clean:
+	@echo clean ...
+	@rm -fr $(BUILD) $(LIBTARGET)
+
+install: $(LIBTARGET)
+	@[ -d $(LIBINSTALL) ] || mkdir -p $(LIBINSTALL)
+	@[ -d $(HDRINSTALL) ] || mkdir -p $(HDRINSTALL)
+	cp $(foreach incl,$(INCLUDES),$(SOURCES)/$(incl)) $(HDRINSTALL)
+	cp $(LIBTARGET) $(LIBINSTALL)
+
+wut:
+	@[ -d $(BUILD) ] || mkdir -p $(BUILD)
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile DEF_FLAGS=-D__WUT__
+
+#---------------------------------------------------------------------------------
+else
+
+DEPENDS	:=	$(OFILES:.o=.d)
+
+#---------------------------------------------------------------------------------
+# main targets
+#---------------------------------------------------------------------------------
+$(LIBTARGET): $(OFILES)
+	@rm -f "../$(LIBTARGET)"
+	@$(AR) rcs "../$(LIBTARGET)" $(OFILES)
+	@echo built $(notdir $@)
+
+$(LIBDIR)/$(PLATFORM):
+	mkdir -p ../$(LIBDIR)/$(PLATFORM)
+
+-include $(DEPENDS)
+
+#---------------------------------------------------------------------------------------
+endif
+#---------------------------------------------------------------------------------------
